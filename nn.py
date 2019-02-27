@@ -2,6 +2,7 @@ import numpy as np
 import math
 import itertools
 import random
+from datetime import datetime
 
 class ActivationFunction:
     """Constructor.
@@ -9,10 +10,16 @@ class ActivationFunction:
     Args:
         f: activation function
         df: activation function derivative
+        textinfo: info about function
     """
-    def __init__(self, f, df):
+    def __init__(self, f, df, textinfo):
         self.f = f
         self.df = df
+        self.textinfo = textinfo
+
+    """Print info about activation function."""
+    def __str__(self):
+        return self.textinfo
 
     """Create sigmoid activation function.
 
@@ -21,7 +28,7 @@ class ActivationFunction:
     """
     @staticmethod
     def create_sigmoid():
-        return ActivationFunction(lambda x: 1.0 / (1.0 + math.exp(-x)), lambda y: y * (1 - y))
+        return ActivationFunction(lambda x: 1.0 / (1.0 + math.exp(-x)), lambda y: y * (1 - y), "sigmoid")
 
     """Create identity activation function.
 
@@ -30,7 +37,7 @@ class ActivationFunction:
     """
     @staticmethod
     def create_identity():
-        return ActivationFunction(lambda x: x, lambda y: 1)
+        return ActivationFunction(lambda x: x, lambda y: 1, "identity")
 
 
 class Layer:
@@ -46,8 +53,9 @@ class Layer:
     """
     def __init__(self, num_nodes, num_nodes_next_layer,
                  activation_func_creator, bias_creator, weight_creator):
-        self.ac_funcs = [activation_func_creator() for _ in range(num_nodes)]
-        self.biases = np.array([bias_creator() for _ in range(num_nodes)])
+        self.ac_funcs = np.array([activation_func_creator()
+                                  for _ in range(num_nodes)])
+        self.biases = np.array([[bias_creator() for _ in range(num_nodes)]])
         self.weights = np.array([[weight_creator() for _ in range(
             num_nodes_next_layer)] for _ in range(num_nodes)])
 
@@ -57,11 +65,14 @@ class Layer:
 
     """Layer info"""
     def __str__(self):
-        return ""
+        return "\nLayer info:\nNodes: " + str(len(self)) + "\n" + \
+            "Biases:\n" + str(self.biases) + "\n" + \
+            "Weights:\n" + str(self.weights) + "\n" + \
+            "Activation functions:\n" + \
+            "".join([str(f)+", " for f in self.ac_funcs]) + "\n"
 
 
 class NeuralNetwork:
-
     def __init__(self, layers, ac_funcs):
         assert(len(layers) == len(ac_funcs))
         assert(len(layers) > 1)
@@ -70,19 +81,38 @@ class NeuralNetwork:
                              lambda: 0.0, self.create_weight)]
 
         for i in range(1, len(layers)):
-            next_l = layers[i+1] if i < len(layers) else 1
-            self.layers.append(
-                Layer(layers[i], next_l, ac_funcs[i], self.create_bias, self.create_weight))
+            next_l = layers[i+1] if i+1 < len(layers) else 1
+            layer = Layer(layers[i], next_l, ac_funcs[i],
+                          self.create_bias, self.create_weight)
+            self.layers.append(layer)
 
     def predict(self, input):
         return self.feedforward(input)[-1]
-    
+
     def feedforward(self, input):
-        pass
+        assert(len(input) == len(self.layers[0]))
+
+        output = np.array([input])
+        outputs = []
+
+        for i in range(len(self.layers)):
+            layer = self.layers[i]
+            output = output.add(layer.biases)
+            output = np.array(list(zip(output, layer.ac_funcs)))
+            output = output.vectorize(lambda x: x[1].f(x[0]))
+            outputs.append(output[0])
+
+            if i + 1 < len(self.layers):
+                output = output * layer.weights
+
+        return outputs
 
     def train(self, input, target, learning_rate=0.1):
         pass
-    
+
+    def __str__(self):
+        return "".join([str(x) for x in self.layers])
+
     @staticmethod
     def create_bias():
         return random.random()
@@ -90,4 +120,9 @@ class NeuralNetwork:
     @staticmethod
     def create_weight():
         return 2.0 * random.random() - 1.0
-            
+
+random.seed(datetime.now())
+nn = NeuralNetwork([2, 2, 1], [ActivationFunction.create_identity,
+                               ActivationFunction.create_sigmoid, ActivationFunction.create_sigmoid])
+print(nn.feedforward([1, 0]))
+print(nn)
