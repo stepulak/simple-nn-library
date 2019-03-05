@@ -97,10 +97,9 @@ class NeuralNetwork:
 
         for i in range(len(self.layers)):
             layer = self.layers[i]
-            output = output.add(layer.biases)
-            output = np.array(list(zip(output, layer.ac_funcs)))
-            output = output.vectorize(lambda x: x[1].f(x[0]))
-            outputs.append(output[0])
+            output = output + layer.biases
+            output = np.array([y.f(x) for x, y in zip(output[0], layer.ac_funcs)])
+            outputs.append(output)
 
             if i + 1 < len(self.layers):
                 output = output * layer.weights
@@ -108,7 +107,31 @@ class NeuralNetwork:
         return outputs
 
     def train(self, input, target, learning_rate=0.1):
-        pass
+        outputs = self.feedforward(input)
+        error = np.array(target) - outputs[-1]
+
+        # reverse iteration
+        for i in range(len(self.layers) - 2, -1, -1):
+            layer = self.layers[i]
+            next_layer = self.layers[i + 1]
+            layer_o = outputs[i]
+            next_layer_o = outputs[i + 1]
+            next_layer_dfunc = [x.df for x in next_layer.ac_funcs]
+
+            # Count gradient
+            error = np.vectorize(lambda x: x * learning_rate)(error)
+            gradient = [f(x) for f, x in zip(next_layer_dfunc, next_layer_o)]
+            gradient = np.multiply(error, np.array(gradient))[0]
+            
+            # Count deltas
+            weight_deltas = np.array([gradient.transpose() * layer_o]).transpose()
+            bias_deltas = gradient.transpose() # just the gradient
+
+            # Count new error
+            error = (layer.weights * error.transpose()).transpose()
+            
+            layer.weights += weight_deltas
+            next_layer.biases += bias_deltas
 
     def __str__(self):
         return "".join([str(x) for x in self.layers])
@@ -121,8 +144,8 @@ class NeuralNetwork:
     def create_weight():
         return 2.0 * random.random() - 1.0
 
-random.seed(datetime.now())
-nn = NeuralNetwork([2, 2, 1], [ActivationFunction.create_identity,
+random.seed(42) #datetime.now())
+nn = NeuralNetwork([2, 3, 4, 1], [ActivationFunction.create_identity, ActivationFunction.create_sigmoid,
                                ActivationFunction.create_sigmoid, ActivationFunction.create_sigmoid])
-print(nn.feedforward([1, 0]))
+print(nn.train([1, 0], [1]))
 print(nn)
