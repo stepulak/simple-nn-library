@@ -173,23 +173,3 @@ class NeuralNetwork:
     @staticmethod
     def get_weight():
         return 2.0 * random.random() - 1.0
-
-random.seed(datetime.now())
-nn = NeuralNetwork([2, 2, 1], [ActivationFunction.create_identity,
-                                ActivationFunction.create_sigmoid,
-                                ActivationFunction.create_sigmoid])
-
-dataset = [
-    ([0, 0], [0]),
-    ([1, 0], [1]),
-    ([0, 1], [1]),
-    ([1, 1], [0])
-]
-
-for i in range(30000):
-    index = random.randint(0, len(dataset) - 1)
-    data = dataset[index]
-    nn.train(data[0], data[1])
-
-for x in dataset:
-    print("Input: ", x[0], " target: ", x[1], " output: ", nn.predict(x[0]))
