@@ -73,22 +73,42 @@ class Layer:
 
 
 class NeuralNetwork:
+    """ Constructor.
+
+    Args:
+        layers: array of number of nodes per each layer
+        ac_funcs: array of activation functions for each layer
+    """
     def __init__(self, layers, ac_funcs):
         assert(len(layers) == len(ac_funcs))
         assert(len(layers) > 1)
 
         self.layers = [Layer(layers[0], layers[1], ac_funcs[0],
-                             lambda: 0.0, self.create_weight)]
+                             lambda: 0.0, self.get_weight)]
 
         for i in range(1, len(layers)):
             next_l = layers[i+1] if i+1 < len(layers) else 1
             layer = Layer(layers[i], next_l, ac_funcs[i],
-                          self.create_bias, self.create_weight)
+                          self.get_bias, self.get_weight)
             self.layers.append(layer)
 
+    """Predict new value based on input array.
+
+    Args:
+        input: array of input, must match the dimension of input layer
+    Returns:
+        output matched with dimension of output layer
+    """
     def predict(self, input):
         return self.feedforward(input)[-1]
 
+    """Run input through NN and calculate output for each layer.
+
+    Args:
+        input: array of input, must match the dimension of input layer
+    Returns:
+        array of outputs for each layer
+    """
     def feedforward(self, input):
         assert(len(input) == len(self.layers[0]))
 
@@ -102,13 +122,20 @@ class NeuralNetwork:
             outputs.append(output)
 
             if i + 1 < len(self.layers):
-                output = output * layer.weights
+                output = np.dot(output, layer.weights)
 
         return outputs
 
+    """Train NN using backpropagation algorithm.
+
+    Args:
+        input: array of input, must match the dimension of input layer
+        target: array of target output, must match the dimension of output layer
+        learning_rate: how large steps to make during weight and bias optimalization
+    """
     def train(self, input, target, learning_rate=0.1):
         outputs = self.feedforward(input)
-        error = np.array(target) - outputs[-1]
+        error = np.array([target]) - outputs[-1]
 
         # reverse iteration
         for i in range(len(self.layers) - 2, -1, -1):
@@ -120,32 +147,49 @@ class NeuralNetwork:
 
             # Count gradient
             error = np.vectorize(lambda x: x * learning_rate)(error)
-            gradient = [f(x) for f, x in zip(next_layer_dfunc, next_layer_o)]
-            gradient = np.multiply(error, np.array(gradient))[0]
+            gradient = np.array([[f(x) for f, x in zip(next_layer_dfunc, next_layer_o)]])
+            gradient = np.multiply(error, gradient)
             
             # Count deltas
-            weight_deltas = np.array([gradient.transpose() * layer_o]).transpose()
-            bias_deltas = gradient.transpose() # just the gradient
+            weight_deltas = np.dot(gradient.transpose(), np.array([layer_o])).transpose()
+            bias_deltas = gradient # just the gradient
 
             # Count new error
-            error = (layer.weights * error.transpose()).transpose()
+            error = np.dot(layer.weights, error.transpose()).transpose()
             
             layer.weights += weight_deltas
             next_layer.biases += bias_deltas
 
+    """Return NN info"""
     def __str__(self):
         return "".join([str(x) for x in self.layers])
 
+    """Return random bias"""
     @staticmethod
-    def create_bias():
+    def get_bias():
         return random.random()
 
+    """Return random weight"""
     @staticmethod
-    def create_weight():
+    def get_weight():
         return 2.0 * random.random() - 1.0
 
-random.seed(42) #datetime.now())
-nn = NeuralNetwork([2, 3, 4, 1], [ActivationFunction.create_identity, ActivationFunction.create_sigmoid,
-                               ActivationFunction.create_sigmoid, ActivationFunction.create_sigmoid])
-print(nn.train([1, 0], [1]))
-print(nn)
+random.seed(datetime.now())
+nn = NeuralNetwork([2, 2, 1], [ActivationFunction.create_identity,
+                                ActivationFunction.create_sigmoid,
+                                ActivationFunction.create_sigmoid])
+
+dataset = [
+    ([0, 0], [0]),
+    ([1, 0], [1]),
+    ([0, 1], [1]),
+    ([1, 1], [0])
+]
+
+for i in range(30000):
+    index = random.randint(0, len(dataset) - 1)
+    data = dataset[index]
+    nn.train(data[0], data[1])
+
+for x in dataset:
+    print("Input: ", x[0], " target: ", x[1], " output: ", nn.predict(x[0]))
